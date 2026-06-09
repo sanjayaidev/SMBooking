@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoSend — Bulk & Triggers</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Syne',sans-serif;background:#080c10;color:#d0dde8;min-height:100vh;}
+/* ── LAYOUT ───────────────────────────────── */
+.sidebar{width:220px;background:#0e1318;border-right:1px solid #1e2a35;min-height:100vh;position:fixed;top:0;left:0;display:flex;flex-direction:column;}
+.main{margin-left:220px;padding:24px;max-width:calc(100vw - 220px);}
+.logo{padding:20px 20px 12px;font-size:19px;font-weight:800;letter-spacing:-.3px;}
+.logo span{color:#00e5a0;}
+/* ── NAV ──────────────────────────────────── */
+.nav-section{font-size:9px;font-family:'Space Mono',monospace;color:#4a6070;letter-spacing:.8px;padding:10px 14px 3px;text-transform:uppercase;}
+.nav-item{padding:8px 14px;cursor:pointer;border-radius:8px;margin:2px 6px;font-size:13px;display:flex;align-items:center;gap:8px;transition:background .12s;color:#7a95a8;}
+.nav-item:hover{background:rgba(255,255,255,.04);color:#d0dde8;}
+.nav-item.active{background:rgba(0,229,160,.1);color:#00e5a0;}
+/* ── STATUS BAR ───────────────────────────── */
+.status-bar{display:flex;align-items:center;gap:8px;padding:8px 14px;margin:6px;background:#080c10;border-radius:8px;border:1px solid #1e2a35;}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.dot-green{background:#00e5a0;box-shadow:0 0 5px #00e5a0;}
+.dot-red{background:#ff5f7e;}
+.dot-yellow{background:#ffd166;animation:blink 1.2s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+/* ── CARDS ────────────────────────────────── */
+.card{background:#0e1318;border:1px solid #1e2a35;border-radius:14px;padding:18px;margin-bottom:14px;}
+.card-title{font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+/* ── BTNS ─────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-family:'Syne',sans-serif;border:none;font-size:12px;transition:opacity .15s;}
+.btn:hover{opacity:.82;}
+.btn:disabled{opacity:.35;cursor:not-allowed;}
+.btn-green{background:#00e5a0;color:#000;}
+.btn-red{background:#ff5f7e;color:#fff;}
+.btn-yellow{background:#ffd166;color:#000;}
+.btn-purple{background:#a78bfa;color:#000;}
+.btn-ghost{background:transparent;border:1px solid #243040;color:#d0dde8;}
+.btn-sm{padding:5px 10px;font-size:11px;}
+.btn-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+/* ── FORM ─────────────────────────────────── */
+label,.lbl{display:block;font-size:10px;font-family:'Space Mono',monospace;color:#7a95a8;margin-bottom:4px;letter-spacing:.4px;text-transform:uppercase;}
+input,textarea,select{width:100%;padding:9px 11px;background:#080c10;border:1px solid #1e2a35;border-radius:7px;color:#fff;font-family:'Syne',sans-serif;font-size:13px;margin-bottom:10px;}
+input:focus,textarea:focus,select:focus{outline:none;border-color:#00e5a0;}
+input::placeholder,textarea::placeholder{color:#4a6070;}
+textarea{resize:vertical;}
+select option{background:#0e1318;}
+input[type=checkbox]{width:auto;margin-bottom:0;cursor:pointer;}
+input[type=datetime-local]{color-scheme:dark;}
+/* ── TABLES ───────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:#4a6070;padding:7px 10px;border-bottom:1px solid #1e2a35;text-align:left;}
+td{padding:8px 10px;border-bottom:1px solid #0d1117;vertical-align:middle;}
+tr:hover td{background:rgba(255,255,255,.015);}
+/* ── BADGES ───────────────────────────────── */
+.badge{padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;letter-spacing:.3px;}
+.b-pending{background:rgba(255,209,102,.15);color:#ffd166;}
+.b-scheduled{background:rgba(167,139,250,.15);color:#a78bfa;}
+.b-running{background:rgba(0,229,160,.15);color:#00e5a0;}
+.b-done{background:rgba(74,96,112,.15);color:#7a95a8;}
+.b-failed{background:rgba(255,95,126,.15);color:#ff5f7e;}
+.b-sent{background:rgba(0,229,160,.15);color:#00e5a0;}
+.b-active{background:rgba(0,229,160,.15);color:#00e5a0;}
+.b-paused{background:rgba(255,209,102,.15);color:#ffd166;}
+.b-keyword{background:rgba(167,139,250,.15);color:#a78bfa;}
+.b-webhook{background:rgba(0,229,160,.15);color:#00e5a0;}
+/* ── TABS ─────────────────────────────────── */
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+/* ── PROGRESS ─────────────────────────────── */
+.prog-track{height:4px;background:#1e2a35;border-radius:10px;overflow:hidden;margin:8px 0;}
+.prog-bar{height:4px;background:#00e5a0;border-radius:10px;transition:width .3s;}
+/* ── STATS ────────────────────────────────── */
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+.stat{background:#080c10;border-radius:8px;padding:10px 12px;}
+.stat-lbl{font-size:9px;font-family:'Space Mono',monospace;color:#4a6070;letter-spacing:.5px;text-transform:uppercase;}
+.stat-val{font-size:20px;font-weight:800;margin-top:2px;}
+.green{color:#00e5a0;}.red{color:#ff5f7e;}.purple{color:#a78bfa;}.yellow{color:#ffd166;}
+/* ── MSG SOURCE TOGGLE ────────────────────── */
+.src-toggle{display:flex;gap:8px;margin-bottom:12px;}
+.src-opt{flex:1;padding:9px 10px;border-radius:9px;border:2px solid #1e2a35;cursor:pointer;font-size:11px;font-weight:700;text-align:center;transition:all .15s;background:#080c10;color:#7a95a8;}
+.src-opt:hover{border-color:#a78bfa;color:#d0dde8;}
+.src-opt.active{border-color:#00e5a0;background:rgba(0,229,160,.07);color:#00e5a0;}
+/* ── TRIGGER CARD ─────────────────────────── */
+.trig-card{background:#080c10;border:1px solid #1e2a35;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px;}
+.trig-card.enabled{border-color:rgba(0,229,160,.3);}
+.trig-info{flex:1;min-width:0;}
+.trig-name{font-weight:700;font-size:13px;margin-bottom:3px;}
+.trig-meta{font-size:10px;color:#7a95a8;font-family:'Space Mono',monospace;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.trig-actions{display:flex;gap:5px;flex-shrink:0;align-items:center;}
+/* ── CAMPAIGN ROW ─────────────────────────── */
+.camp-row{background:#080c10;border:1px solid #1e2a35;border-radius:10px;padding:12px 14px;margin-bottom:7px;}
+.camp-row.running{border-color:rgba(0,229,160,.35);}
+.camp-header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.camp-name{font-weight:700;font-size:13px;}
+.camp-meta{font-size:10px;color:#7a95a8;font-family:'Space Mono',monospace;margin-top:3px;}
+.camp-actions{display:flex;gap:5px;align-items:center;flex-shrink:0;}
+/* ── TOGGLE SWITCH ────────────────────────── */
+.toggle-wrap{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;}
+.toggle{position:relative;width:34px;height:18px;flex-shrink:0;}
+.toggle input{opacity:0;width:0;height:0;}
+.slider{position:absolute;inset:0;background:#1e2a35;border-radius:18px;transition:.2s;}
+.slider:before{content:'';position:absolute;width:12px;height:12px;left:3px;top:3px;background:#7a95a8;border-radius:50%;transition:.2s;}
+input:checked+.slider{background:rgba(0,229,160,.3);}
+input:checked+.slider:before{transform:translateX(16px);background:#00e5a0;}
+/* ── TOAST ────────────────────────────────── */
+.toast{position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:9px;z-index:9999;display:none;font-size:12px;max-width:320px;}
+/* ── EMPTY ────────────────────────────────── */
+.empty{text-align:center;padding:24px;color:#4a6070;font-size:12px;}
+/* ── DIVIDER ──────────────────────────────── */
+hr{border:none;border-top:1px solid #1e2a35;margin:14px 0;}
+/* ── GRID ─────────────────────────────────── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:720px){.g2{grid-template-columns:1fr;}.main{margin-left:0;max-width:100vw;padding:12px;}.sidebar{display:none;}}
+/* ── SCHEDULER DATETIME ───────────────────── */
+.sched-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+.sched-row label{margin-bottom:0;white-space:nowrap;}
+/* ── STEP INDICATOR ───────────────────────── */
+.steps{display:flex;gap:0;margin-bottom:16px;border-radius:9px;overflow:hidden;border:1px solid #1e2a35;}
+.step{flex:1;padding:8px 6px;text-align:center;font-size:10px;font-family:'Space Mono',monospace;cursor:pointer;color:#4a6070;transition:all .15s;background:#080c10;border-right:1px solid #1e2a35;}
+.step:last-child{border-right:none;}
+.step.active{background:rgba(0,229,160,.08);color:#00e5a0;font-weight:700;}
+.step.done{background:rgba(0,229,160,.04);color:#00e5a0;}
+/* ── WEBHOOK URL BOX ──────────────────────── */
+.url-box{background:#080c10;border:1px solid #1e2a35;border-radius:7px;padding:9px 11px;font-size:11px;font-family:'Space Mono',monospace;color:#a78bfa;word-break:break-all;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.url-box span{flex:1;}
+/* ── SPINNER ──────────────────────────────── */
+.spin{display:inline-block;width:11px;height:11px;border:2px solid #1e2a35;border-top-color:#00e5a0;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;}
+@keyframes sp{to{transform:rotate(360deg);}}
+/* ── CONTACT PREVIEW ──────────────────────── */
+.contact-chip{display:inline-flex;align-items:center;gap:4px;background:#0d1117;border:1px solid #1e2a35;border-radius:20px;padding:2px 8px;font-size:10px;font-family:'Space Mono',monospace;color:#7a95a8;margin:2px;}
+/* ── TOP BAR ──────────────────────────────── */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+.topbar-title{font-size:20px;font-weight:800;}
+.topbar-sub{font-size:11px;color:#4a6070;font-family:'Space Mono',monospace;margin-top:2px;}
+/* ── SETTINGS INPUT GROUP ─────────────────── */
+.input-group{margin-bottom:12px;}
+.input-group label{margin-bottom:4px;}
+.hint{font-size:10px;color:#4a6070;font-family:'Space Mono',monospace;margin-top:-8px;margin-bottom:8px;}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="logo">Auto<span>Send</span></div>
+  <div class="status-bar">
+    <div class="dot dot-red" id="connDot"></div>
+    <span id="connText" style="font-size:10px;font-family:'Space Mono',monospace;font-weight:700;color:#7a95a8;">OFFLINE</span>
+  </div>
+  <div style="padding:0 4px;margin-top:6px;flex:1;">
+    <div class="nav-section">Messaging</div>
+    <div class="nav-item active" data-tab="bulk">📤 Bulk Message</div>
+    <div class="nav-item" data-tab="triggers">⚡ Trigger Rules</div>
+    <div class="nav-section">Config</div>
+    <div class="nav-item" data-tab="settings">⚙️ Settings</div>
+  </div>
+  <div style="padding:10px 8px 14px;">
+    <div style="font-size:9px;font-family:'Space Mono',monospace;color:#4a6070;padding:0 6px 6px;" id="gowaUrlDisplay"></div>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:11px;" onclick="checkStatus()">↻ Check Status</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- ═══════════════════ BULK MESSAGE ═══════════════════ -->
+  <div class="tab-panel active" id="tab-bulk">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">📤 Bulk Message</div>
+        <div class="topbar-sub">Import contacts → compose → schedule or send now</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="loadCampaigns()">↻ Campaigns</button>
+        <button class="btn btn-green btn-sm" onclick="openNewCampaign()">+ New Campaign</button>
+      </div>
+    </div>
+
+    <!-- STEP WIZARD -->
+    <div class="steps" id="bulkSteps">
+      <div class="step active" data-step="1" onclick="goStep(1)">1 · Contacts</div>
+      <div class="step" data-step="2" onclick="goStep(2)">2 · Message</div>
+      <div class="step" data-step="3" onclick="goStep(3)">3 · Schedule</div>
+      <div class="step" data-step="4" onclick="goStep(4)">4 · Review</div>
+    </div>
+
+    <!-- STEP 1: CONTACTS -->
+    <div id="step-1">
+      <div class="card">
+        <div class="card-title">👥 Add Contacts</div>
+        <div class="g2">
+          <div>
+            <label>Paste CSV (Name, Phone [, Message])</label>
+            <textarea id="pasteCSV" rows="5" placeholder="John, 919876543210&#10;Jane, 918765432109, Hi {name}, special offer!"></textarea>
+            <button class="btn btn-green btn-sm" onclick="parsePaste()">📥 Parse</button>
+          </div>
+          <div>
+            <label>Upload CSV / Excel</label>
+            <input type="file" id="fileImport" accept=".csv,.xlsx,.xls" style="margin-bottom:8px;">
+            <div class="btn-row">
+              <button class="btn btn-green btn-sm" onclick="importFile()">📥 Import</button>
+              <button class="btn btn-ghost btn-sm" onclick="downloadTemplate()">📄 Template</button>
+            </div>
+            <div id="importStatus" style="font-size:10px;color:#7a95a8;margin-top:6px;display:none;"></div>
+          </div>
+        </div>
+        <hr>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:12px;font-weight:700;" id="contactsHeader">Contacts (0)</span>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="clearContacts()">🗑 Clear</button>
+          </div>
+        </div>
+        <div style="max-height:220px;overflow-y:auto;">
+          <table>
+            <thead><tr><th>Name</th><th>Phone</th><th>Msg?</th><th></th></tr></thead>
+            <tbody id="contactsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="goStep(2)" id="toStep2Btn">Next: Message →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: MESSAGE -->
+    <div id="step-2" style="display:none;">
+      <div class="card">
+        <div class="card-title">✍️ Message</div>
+        <div class="src-toggle">
+          <div class="src-opt active" id="srcTemplate" onclick="setSrc('template')">
+            <div>✍️ Template</div>
+            <div style="font-size:9px;font-family:'Space Mono',monospace;color:#4a6070;margin-top:2px;">one message for all</div>
+          </div>
+          <div class="src-opt" id="srcSheet" onclick="setSrc('sheet')">
+            <div>📄 Per-Contact</div>
+            <div id="sheetMsgCount" style="font-size:9px;font-family:'Space Mono',monospace;color:#4a6070;margin-top:2px;">from CSV column</div>
+          </div>
+        </div>
+        <div id="templateSection">
+          <label>Message (use {name} for personalisation)</label>
+          <textarea id="msgTemplate" rows="5" placeholder="Hi {name}, we have something special for you! 🎉"></textarea>
+        </div>
+        <div id="sheetSection" style="display:none;">
+          <div style="background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.2);border-radius:8px;padding:10px 12px;font-size:12px;color:#a78bfa;margin-bottom:10px;">
+            📄 Each contact will receive their individual message from the "message" column in your CSV. Contacts without a message column will be skipped.
+          </div>
+          <div id="sheetPreview"></div>
+        </div>
+        <hr>
+        <div class="g2">
+          <div>
+            <label>Attachment Type</label>
+            <select id="attachType">
+              <option value="none">None — Text only</option>
+              <option value="image">Image</option>
+              <option value="video">Video</option>
+              <option value="audio">Audio</option>
+              <option value="file">File / Document</option>
+            </select>
+          </div>
+          <div>
+            <label>Media URL (if attachment)</label>
+            <input type="text" id="attachUrl" placeholder="https://example.com/image.jpg">
+          </div>
+        </div>
+        <hr>
+        <label>Delay Between Messages</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div style="flex:1;min-width:120px;">
+            <label style="margin-bottom:2px;">Min (seconds)</label>
+            <input type="number" id="minDelay" value="30" min="5">
+          </div>
+          <div style="flex:1;min-width:120px;">
+            <label style="margin-bottom:2px;">Max (seconds)</label>
+            <input type="number" id="maxDelay" value="90" min="10">
+          </div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goStep(1)">← Back</button>
+        <button class="btn btn-green" onclick="goStep(3)">Next: Schedule →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: SCHEDULE -->
+    <div id="step-3" style="display:none;">
+      <div class="card">
+        <div class="card-title">🗓 Schedule</div>
+        <div class="src-toggle" style="margin-bottom:16px;">
+          <div class="src-opt active" id="schedNow" onclick="setSchedMode('now')">
+            <div>▶ Send Now</div>
+            <div style="font-size:9px;font-family:'Space Mono',monospace;color:#4a6070;margin-top:2px;">starts immediately</div>
+          </div>
+          <div class="src-opt" id="schedLater" onclick="setSchedMode('later')">
+            <div>🗓 Scheduled</div>
+            <div style="font-size:9px;font-family:'Space Mono',monospace;color:#4a6070;margin-top:2px;">pick date & time</div>
+          </div>
+        </div>
+        <div id="schedDateSection" style="display:none;">
+          <label>Send At (your local time)</label>
+          <input type="datetime-local" id="schedDateTime">
+          <div class="hint">Vercel cron runs every minute — campaign fires within 60s of your chosen time.</div>
+        </div>
+        <div id="schedNowNote" style="background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.15);border-radius:8px;padding:10px 12px;font-size:12px;color:#00e5a0;">
+          ▶ Campaign will start sending immediately when you click "Launch".
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goStep(2)">← Back</button>
+        <button class="btn btn-green" onclick="goStep(4)">Next: Review →</button>
+      </div>
+    </div>
+
+    <!-- STEP 4: REVIEW & LAUNCH -->
+    <div id="step-4" style="display:none;">
+      <div class="card">
+        <div class="card-title">🔍 Review Campaign</div>
+        <div id="reviewSummary" style="font-size:13px;line-height:1.7;"></div>
+      </div>
+      <div class="card">
+        <label>Campaign Name</label>
+        <input type="text" id="campName" placeholder="My Campaign — June 2026">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goStep(3)">← Back</button>
+        <button class="btn btn-green" id="launchBtn" onclick="launchCampaign()">🚀 Launch Campaign</button>
+      </div>
+    </div>
+
+    <hr>
+
+    <!-- CAMPAIGNS LIST -->
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between;">
+        <span>📋 Campaigns</span>
+        <button class="btn btn-ghost btn-sm" onclick="loadCampaigns()">↻ Refresh</button>
+      </div>
+      <div id="campaignsList"><div class="empty">No campaigns yet. Create one above.</div></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ TRIGGER RULES ═══════════════════ -->
+  <div class="tab-panel" id="tab-triggers">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">⚡ Trigger Rules</div>
+        <div class="topbar-sub">Auto-reply on keywords or external webhook events</div>
+      </div>
+      <button class="btn btn-green btn-sm" onclick="openNewTrigger()">+ New Rule</button>
+    </div>
+
+    <!-- WEBHOOK RECEIVER URL -->
+    <div class="card">
+      <div class="card-title">🔗 Your Webhook Receive URL</div>
+      <div style="font-size:12px;color:#7a95a8;margin-bottom:10px;">
+        Set this URL in GoWA's <code style="background:#080c10;padding:2px 6px;border-radius:4px;color:#a78bfa;">--webhook</code> flag so incoming messages trigger your keyword rules. Also use it as the endpoint in external services (Shopify, Typeform, etc.) for webhook triggers.
+      </div>
+      <div class="url-box">
+        <span id="webhookUrl">—</span>
+        <button class="btn btn-ghost btn-sm" onclick="copyWebhook()">📋 Copy</button>
+      </div>
+      <div style="font-size:10px;color:#4a6070;font-family:'Space Mono',monospace;">
+        GoWA config: <code style="background:#080c10;padding:2px 5px;border-radius:3px;">--webhook="YOUR_URL_ABOVE"</code>
+      </div>
+    </div>
+
+    <!-- NEW TRIGGER FORM -->
+    <div class="card" id="newTriggerCard" style="display:none;">
+      <div class="card-title">➕ New Trigger Rule</div>
+      <div class="g2">
+        <div>
+          <label>Rule Name</label>
+          <input type="text" id="trigName" placeholder="Welcome reply">
+          <label>Trigger Type</label>
+          <select id="trigType" onchange="onTrigTypeChange()">
+            <option value="keyword">💬 Keyword (incoming message)</option>
+            <option value="webhook">🌐 Webhook Event (external)</option>
+          </select>
+        </div>
+        <div>
+          <div id="keywordSection">
+            <label>Keywords (comma-separated)</label>
+            <input type="text" id="trigKeywords" placeholder="hello, hi, start, info">
+            <label>Match Mode</label>
+            <select id="trigMatchMode">
+              <option value="contains">Contains keyword</option>
+              <option value="exact">Exact match</option>
+              <option value="starts">Starts with keyword</option>
+            </select>
+          </div>
+          <div id="webhookSection" style="display:none;">
+            <label>Webhook Events (comma-separated)</label>
+            <input type="text" id="trigWebhookEvents" placeholder="message, order.created">
+            <label>Send Reply To (phone, leave blank to reply sender)</label>
+            <input type="text" id="trigReplyPhone" placeholder="919876543210 (optional)">
+          </div>
+        </div>
+      </div>
+      <label>Auto-Reply Message (use {name}, {phone})</label>
+      <textarea id="trigReplyMsg" rows="3" placeholder="Hi {name}! Thanks for reaching out. We'll get back to you shortly 👋"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="saveTrigger()">💾 Save Rule</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('newTriggerCard').style.display='none'">Cancel</button>
+      </div>
+    </div>
+
+    <!-- TRIGGERS LIST -->
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between;">
+        <span>📋 Active Rules</span>
+        <button class="btn btn-ghost btn-sm" onclick="loadTriggers()">↻ Refresh</button>
+      </div>
+      <div id="triggersList"><div class="empty"><span class="spin"></span> Loading…</div></div>
+    </div>
+
+    <!-- TEST INCOMING WEBHOOK -->
+    <div class="card">
+      <div class="card-title">🧪 Test Trigger</div>
+      <div style="font-size:12px;color:#7a95a8;margin-bottom:10px;">Simulate an incoming message to test your keyword rules.</div>
+      <div class="g2">
+        <div>
+          <label>Simulated Message Text</label>
+          <input type="text" id="testMsgText" placeholder="hello">
+        </div>
+        <div>
+          <label>Sender Phone (optional)</label>
+          <input type="text" id="testSenderPhone" placeholder="919876543210">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-yellow btn-sm" onclick="testTrigger()">▶ Simulate & Fire</button>
+      </div>
+      <div id="testTriggerResult" style="margin-top:10px;font-size:11px;font-family:'Space Mono',monospace;color:#7a95a8;display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ SETTINGS ═══════════════════ -->
+  <div class="tab-panel" id="tab-settings">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">⚙️ Settings</div>
+        <div class="topbar-sub">Configure your GoWA server connection</div>
+      </div>
+    </div>
+
+    <div class="g2">
+      <div class="card">
+        <div class="card-title">🖥 GoWA Server (v7.8)</div>
+        <div class="input-group">
+          <label>Server Base URL</label>
+          <input type="text" id="cfgGowaUrl" placeholder="http://your-server:3000">
+        </div>
+        <div class="input-group">
+          <label>Basic Auth (base64 user:pass, blank if none)</label>
+          <input type="text" id="cfgGowaAuth" placeholder="Leave blank — no auth">
+          <div class="hint">e.g. btoa('user:pass') → dXNlcjpwYXNz</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-green" onclick="saveSettings()">💾 Save</button>
+          <button class="btn btn-ghost" onclick="testConnection()">🧪 Test Connection</button>
+        </div>
+        <div id="connTestResult" style="margin-top:10px;font-size:11px;font-family:'Space Mono',monospace;color:#7a95a8;display:none;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📊 Connection Status</div>
+        <div id="statusDetail" style="font-size:12px;color:#7a95a8;line-height:1.7;">Click "Check Status" or "Test Connection" to refresh.</div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn btn-ghost btn-sm" onclick="checkStatus()">↻ Check Status</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📤 Send Limits (Safety)</div>
+      <div class="g2">
+        <div>
+          <label>Daily Limit</label>
+          <input type="number" id="cfgDayLimit" value="200" min="1">
+        </div>
+        <div>
+          <label>Hourly Limit</label>
+          <input type="number" id="cfgHourLimit" value="100" min="1">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-green btn-sm" onclick="saveSettings()">💾 Save Limits</button>
+      </div>
+      <div style="margin-top:10px;background:rgba(255,209,102,.05);border:1px solid rgba(255,209,102,.2);border-radius:8px;padding:10px 12px;font-size:11px;color:#ffd166;">
+        ⚠️ Recommended: ≤200/day, ≤100/hour, 30–90s between messages. This tool uses an unofficial API — account bans are possible.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// CONFIG & STATE
+// ═══════════════════════════════════════════════════════
+const API_GOWA      = '/api/gowa';
+const API_SCHED     = '/api/scheduler';
+
+let cfg = {
+  gowaUrl:   localStorage.getItem('gowaUrl')   || '',
+  gowaAuth:  localStorage.getItem('gowaAuth')  || '',
+  dayLimit:  parseInt(localStorage.getItem('dayLimit'))  || 200,
+  hourLimit: parseInt(localStorage.getItem('hourLimit')) || 100,
+};
+
+let contacts  = [];      // current wizard contacts
+let msgSrc    = 'template';
+let schedMode = 'now';
+let currentStep = 1;
+
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+function toast(msg, err=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.cssText = `display:block;background:${err?'#2a1010':'#0a2018'};color:${err?'#ff8fa3':'#00e5a0'};padding:10px 16px;border-radius:9px;border:1px solid ${err?'rgba(255,95,126,.3)':'rgba(0,229,160,.2)'};`;
+  clearTimeout(t._t); t._t = setTimeout(()=>t.style.display='none', 3500);
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function fmtDT(iso){ return iso ? new Date(iso).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}) : '—'; }
+
+// GoWA proxy call — uses /api/gowa?path=app/status etc
+async function gowaCall(method, pathStr, body=null, queryObj={}) {
+  const qs = new URLSearchParams({ path: pathStr, ...queryObj });
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(`${API_GOWA}?${qs}`, opts);
+  if (!r.ok && r.status !== 200) {
+    const txt = await r.text();
+    throw new Error(`GoWA ${r.status}: ${txt.slice(0,120)}`);
+  }
+  return r.json();
+}
+
+// Scheduler API call
+async function schedCall(action, body={}) {
+  const r = await fetch(`${API_SCHED}?action=${action}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return r.json();
+}
+
+// ═══════════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`tab-${name}`)?.classList.add('active');
+  document.querySelector(`[data-tab="${name}"]`)?.classList.add('active');
+  if (name === 'triggers') { loadTriggers(); updateWebhookUrl(); }
+  if (name === 'bulk')     { loadCampaigns(); }
+  if (name === 'settings') { loadSettingsUI(); }
+}
+document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', () => switchTab(n.dataset.tab)));
+
+// ═══════════════════════════════════════════════════════
+// STATUS CHECK
+// ═══════════════════════════════════════════════════════
+async function checkStatus() {
+  const dot  = document.getElementById('connDot');
+  const text = document.getElementById('connText');
+  dot.className = 'dot dot-yellow';
+  text.textContent = 'CHECKING…';
+  try {
+    const r = await gowaCall('GET', 'app/status');
+    const connected = r?.code === 200 || r?.data?.logged_in === true;
+    dot.className   = connected ? 'dot dot-green' : 'dot dot-red';
+    text.textContent = connected ? 'CONNECTED' : 'OFFLINE';
+    const detailEl = document.getElementById('statusDetail');
+    if (detailEl) detailEl.innerHTML = `<strong>Status:</strong> ${connected?'✅ Connected':'❌ Disconnected'}<br><strong>Data:</strong> <pre style="font-size:10px;font-family:'Space Mono',monospace;color:#7a95a8;margin-top:4px;white-space:pre-wrap;">${JSON.stringify(r?.data||r,null,2)}</pre>`;
+    toast(connected ? 'Device connected ✅' : 'Device not connected', !connected);
+  } catch(e) {
+    dot.className   = 'dot dot-red';
+    text.textContent = 'ERROR';
+    toast('Status check failed: ' + e.message, true);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════
+function loadSettingsUI() {
+  document.getElementById('cfgGowaUrl').value   = cfg.gowaUrl;
+  document.getElementById('cfgGowaAuth').value  = cfg.gowaAuth;
+  document.getElementById('cfgDayLimit').value  = cfg.dayLimit;
+  document.getElementById('cfgHourLimit').value = cfg.hourLimit;
+  document.getElementById('gowaUrlDisplay').textContent = cfg.gowaUrl || 'No server set';
+}
+function saveSettings() {
+  cfg.gowaUrl   = document.getElementById('cfgGowaUrl').value.trim().replace(/\/$/, '');
+  cfg.gowaAuth  = document.getElementById('cfgGowaAuth').value.trim();
+  cfg.dayLimit  = parseInt(document.getElementById('cfgDayLimit').value) || 200;
+  cfg.hourLimit = parseInt(document.getElementById('cfgHourLimit').value) || 100;
+  localStorage.setItem('gowaUrl',   cfg.gowaUrl);
+  localStorage.setItem('gowaAuth',  cfg.gowaAuth);
+  localStorage.setItem('dayLimit',  cfg.dayLimit);
+  localStorage.setItem('hourLimit', cfg.hourLimit);
+  document.getElementById('gowaUrlDisplay').textContent = cfg.gowaUrl || 'No server set';
+  toast('Settings saved ✅');
+  updateWebhookUrl();
+}
+async function testConnection() {
+  const el = document.getElementById('connTestResult');
+  el.style.display = 'block'; el.textContent = '⏳ Testing…';
+  try {
+    const r = await gowaCall('GET', 'app/status');
+    el.textContent = '✅ Connected: ' + JSON.stringify(r?.data || r).slice(0, 120);
+    el.style.color = '#00e5a0';
+    checkStatus();
+  } catch(e) {
+    el.textContent = '❌ Failed: ' + e.message;
+    el.style.color = '#ff8fa3';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// BULK — STEP WIZARD
+// ═══════════════════════════════════════════════════════
+function openNewCampaign() {
+  contacts = [];
+  renderContacts();
+  goStep(1);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function goStep(n) {
+  [1,2,3,4].forEach(i => {
+    document.getElementById(`step-${i}`).style.display = i === n ? 'block' : 'none';
+    const s = document.querySelector(`[data-step="${i}"]`);
+    if (s) s.className = `step${i===n?' active':i<n?' done':''}`;
+  });
+  currentStep = n;
+  if (n === 4) buildReview();
+  if (n === 3) {
+    const dt = document.getElementById('schedDateTime');
+    if (!dt.value) {
+      const d = new Date(Date.now() + 5*60*1000);
+      dt.value = d.toISOString().slice(0,16);
+    }
+  }
+}
+
+// ── Message source toggle ──────────────────────────────
+function setSrc(src) {
+  msgSrc = src;
+  document.getElementById('srcTemplate').classList.toggle('active', src==='template');
+  document.getElementById('srcSheet').classList.toggle('active', src==='sheet');
+  document.getElementById('templateSection').style.display = src==='template' ? 'block' : 'none';
+  document.getElementById('sheetSection').style.display    = src==='sheet'    ? 'block' : 'none';
+  if (src === 'sheet') renderSheetPreview();
+}
+function renderSheetPreview() {
+  const withMsg = contacts.filter(c => c.message && c.message.trim());
+  document.getElementById('sheetPreview').innerHTML = withMsg.length
+    ? `<div style="font-size:11px;font-family:'Space Mono',monospace;color:#7a95a8;">${withMsg.length} of ${contacts.length} contacts have individual messages.</div>`
+    : `<div style="font-size:11px;color:#ff8fa3;">⚠️ No contacts have a message column. Import a CSV with a "message" column, or switch to Template mode.</div>`;
+}
+
+// ── Schedule mode ──────────────────────────────────────
+function setSchedMode(mode) {
+  schedMode = mode;
+  document.getElementById('schedNow').classList.toggle('active', mode==='now');
+  document.getElementById('schedLater').classList.toggle('active', mode==='later');
+  document.getElementById('schedDateSection').style.display = mode==='later' ? 'block' : 'none';
+  document.getElementById('schedNowNote').style.display     = mode==='now'   ? 'block' : 'none';
+}
+
+// ── Review summary ─────────────────────────────────────
+function buildReview() {
+  const pending = contacts.filter(c => !c.status || c.status === 'pending');
+  const tpl     = document.getElementById('msgTemplate').value.trim();
+  const hasSheet = contacts.some(c => c.message && c.message.trim());
+  const at      = schedMode==='later' ? document.getElementById('schedDateTime').value : null;
+
+  document.getElementById('reviewSummary').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="stat"><div class="stat-lbl">Contacts</div><div class="stat-val">${pending.length}</div></div>
+      <div class="stat"><div class="stat-lbl">Message</div><div class="stat-val" style="font-size:13px;">${msgSrc==='sheet' ? '📄 Per-contact' : '✍️ Template'}</div></div>
+      <div class="stat"><div class="stat-lbl">Send</div><div class="stat-val" style="font-size:13px;">${at ? '🗓 ' + fmtDT(at) : '▶ Now'}</div></div>
+      <div class="stat"><div class="stat-lbl">Gap</div><div class="stat-val" style="font-size:13px;">${document.getElementById('minDelay').value}–${document.getElementById('maxDelay').value}s</div></div>
+    </div>
+    ${msgSrc==='template' && tpl ? `<div style="margin-top:12px;padding:10px 12px;background:#080c10;border-radius:8px;font-size:12px;color:#d0dde8;border:1px solid #1e2a35;">${esc(tpl.slice(0,200))}${tpl.length>200?'…':''}</div>` : ''}
+    ${!tpl && msgSrc==='template' ? '<div style="margin-top:10px;color:#ff8fa3;font-size:12px;">⚠️ Template is empty. Go back and write a message.</div>' : ''}
+  `;
+}
+
+// ── Launch campaign ────────────────────────────────────
+async function launchCampaign() {
+  const name    = document.getElementById('campName').value.trim() || `Campaign ${new Date().toLocaleDateString('en-IN')}`;
+  const tpl     = document.getElementById('msgTemplate').value.trim();
+  const pending = contacts.filter(c => !c.status || c.status === 'pending');
+
+  if (!pending.length) { toast('No pending contacts', true); return; }
+  if (msgSrc === 'template' && !tpl) { toast('Template is empty', true); return; }
+
+  const sendAt = schedMode === 'later' ? document.getElementById('schedDateTime').value : null;
+  const campId = uid();
+
+  const camp = {
+    id: campId,
+    name,
+    status: 'scheduled',
+    msgSource: msgSrc,
+    template: tpl,
+    contacts: pending.map(c => ({ ...c, status: 'pending' })),
+    sendAt: sendAt ? new Date(sendAt).toISOString() : null,
+    attachType: document.getElementById('attachType').value,
+    attachUrl:  document.getElementById('attachUrl').value.trim(),
+    minDelay:   parseInt(document.getElementById('minDelay').value),
+    maxDelay:   parseInt(document.getElementById('maxDelay').value),
+    createdAt:  new Date().toISOString(),
+  };
+
+  const btn = document.getElementById('launchBtn');
+  btn.disabled = true; btn.textContent = '⏳ Saving…';
+
+  try {
+    const r = await schedCall('saveCampaign', camp);
+    if (!r.success) throw new Error(r.error || 'Save failed');
+
+    if (!sendAt) {
+      // Send now — trigger immediate run
+      btn.textContent = '⏳ Launching…';
+      await schedCall('runCampaign', { id: campId });
+      toast(`🚀 Campaign "${name}" launched!`);
+    } else {
+      toast(`🗓 Campaign "${name}" scheduled for ${fmtDT(new Date(sendAt).toISOString())}`);
+    }
+
+    contacts = [];
+    renderContacts();
+    goStep(1);
+    loadCampaigns();
+  } catch(e) {
+    toast('Launch failed: ' + e.message, true);
+  }
+
+  btn.disabled = false; btn.textContent = '🚀 Launch Campaign';
+}
+
+// ═══════════════════════════════════════════════════════
+// CONTACTS
+// ═══════════════════════════════════════════════════════
+function renderContacts() {
+  const body  = document.getElementById('contactsBody');
+  const hdr   = document.getElementById('contactsHeader');
+  const sheetCount = contacts.filter(c => c.message && c.message.trim()).length;
+  document.getElementById('sheetMsgCount').textContent = `${sheetCount} of ${contacts.length} have messages`;
+  hdr.textContent = `Contacts (${contacts.length})`;
+  if (!contacts.length) {
+    body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#4a6070;padding:14px;">No contacts yet. Import above.</td></tr>';
+    return;
+  }
+  body.innerHTML = contacts.map((c,i) => `
+    <tr>
+      <td>${esc(c.name||'—')}</td>
+      <td style="font-family:'Space Mono',monospace;font-size:10px;">${c.phone}</td>
+      <td style="font-size:10px;color:${c.message?'#00e5a0':'#4a6070'};">${c.message?'✓':'—'}</td>
+      <td><button onclick="rmContact(${i})" style="background:none;border:none;color:#ff5f7e;cursor:pointer;">✕</button></td>
+    </tr>`).join('');
+}
+function rmContact(i) { contacts.splice(i,1); renderContacts(); }
+function clearContacts() { contacts=[]; renderContacts(); }
+
+function parsePaste() {
+  const raw = document.getElementById('pasteCSV').value;
+  let added = 0;
+  for (const line of raw.split(/\r?\n/)) {
+    const parts = line.split(/[\t,]/);
+    if (parts.length < 2) continue;
+    let phone = parts[1].replace(/\D/g,'');
+    if (phone.length === 10) phone = '91' + phone;
+    if (phone.length < 10) continue;
+    if (contacts.some(c => c.phone === phone)) continue;
+    contacts.push({ name:(parts[0]||phone).trim(), phone, message:(parts[2]||'').trim(), status:'pending' });
+    added++;
+  }
+  renderContacts();
+  toast(`Added ${added} contact(s)`);
+  document.getElementById('pasteCSV').value = '';
+}
+
+async function importFile() {
+  const file = document.getElementById('fileImport').files[0];
+  if (!file) { toast('Select a file first', true); return; }
+  const status = document.getElementById('importStatus');
+  status.style.display = 'block'; status.textContent = '⏳ Reading…';
+  try {
+    let rows = [];
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext === 'csv') {
+      rows = parseCSV(await file.text());
+    } else {
+      rows = await parseExcel(file);
+    }
+    const mapped = mapContacts(rows);
+    let added = 0;
+    for (const c of mapped) {
+      if (!c.phone) continue;
+      let phone = c.phone.toString().replace(/\D/g,'');
+      if (phone.length === 10) phone = '91' + phone;
+      if (phone.length < 10 || contacts.some(x => x.phone === phone)) continue;
+      contacts.push({ name:c.name||phone, phone, message:c.message||'', status:'pending' });
+      added++;
+    }
+    renderContacts();
+    toast(`✅ Imported ${added} contacts`);
+    status.textContent = `✅ ${added} contacts added`;
+    setTimeout(()=>status.style.display='none', 3000);
+    document.getElementById('fileImport').value = '';
+  } catch(e) {
+    toast('Import failed: ' + e.message, true);
+    status.textContent = '❌ ' + e.message;
+  }
+}
+
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l=>l.trim());
+  if (!lines.length) return [];
+  const headers = csvLine(lines[0]);
+  return lines.slice(1).map(l => {
+    const vals = csvLine(l);
+    const row = {};
+    headers.forEach((h,i) => row[h.toLowerCase().trim()] = vals[i]||'');
+    return row;
+  }).filter(r => Object.values(r).some(v=>v));
+}
+function csvLine(l) {
+  const res=[]; let inQ=false, cur='';
+  for (const ch of l) {
+    if (ch==='"') inQ=!inQ;
+    else if (ch===','&&!inQ){res.push(cur.trim());cur='';}
+    else cur+=ch;
+  }
+  res.push(cur.trim()); return res;
+}
+function parseExcel(file) {
+  return new Promise((ok,err)=>{
+    const r=new FileReader();
+    r.onload=e=>{try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});ok(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]));}catch(x){err(x);}};
+    r.onerror=err; r.readAsArrayBuffer(file);
+  });
+}
+function mapContacts(rows) {
+  const nameCols=['name','fullname','full name','contact'];
+  const phoneCols=['phone','mobile','whatsapp','number','cell'];
+  const msgCols=['message','msg','text','body','note'];
+  const h = Object.keys(rows[0]||{}).map(k=>k.toLowerCase());
+  const nc=h.find(k=>nameCols.some(c=>k.includes(c)))||h[0];
+  const pc=h.find(k=>phoneCols.some(c=>k.includes(c)))||h[1];
+  const mc=h.find(k=>msgCols.some(c=>k.includes(c)))||null;
+  return rows.map(r=>({name:r[nc]||'',phone:r[pc]||'',message:mc?r[mc]:''}));
+}
+function downloadTemplate() {
+  const blob=new Blob(['Name,Phone,Message\nJohn Doe,919876543210,Hi {name} special offer!\n'],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='contacts_template.csv';a.click();
+  toast('Template downloaded');
+}
+
+// ═══════════════════════════════════════════════════════
+// CAMPAIGNS LIST
+// ═══════════════════════════════════════════════════════
+async function loadCampaigns() {
+  const el = document.getElementById('campaignsList');
+  el.innerHTML = '<div class="empty"><span class="spin"></span> Loading…</div>';
+  try {
+    const r = await schedCall('listCampaigns');
+    const camps = (r.campaigns||[]).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    if (!camps.length) { el.innerHTML='<div class="empty">No campaigns yet.</div>'; return; }
+    el.innerHTML = camps.map(c => {
+      const total  = (c.contacts||[]).length;
+      const sent   = (c.contacts||[]).filter(x=>x.status==='sent').length;
+      const failed = (c.contacts||[]).filter(x=>x.status==='failed').length;
+      const pct    = total ? Math.round(sent/total*100) : 0;
+      return `
+        <div class="camp-row${c.status==='running'?' running':''}">
+          <div class="camp-header">
+            <div>
+              <div class="camp-name">${esc(c.name||c.id)}</div>
+              <div class="camp-meta">${c.sendAt?'🗓 '+fmtDT(c.sendAt):'▶ Immediate'} · ${total} contacts</div>
+            </div>
+            <div class="camp-actions">
+              <span class="badge b-${c.status||'pending'}">${c.status||'pending'}</span>
+              ${c.status==='scheduled'?`<button class="btn btn-green btn-sm" onclick="runCampNow('${c.id}')">▶ Run Now</button>`:''}
+              <button class="btn btn-ghost btn-sm" onclick="viewCamp('${c.id}')">👁</button>
+              <button class="btn btn-red btn-sm" onclick="deleteCamp('${c.id}')">✕</button>
+            </div>
+          </div>
+          ${total>0?`
+          <div class="prog-track" style="margin-top:8px;"><div class="prog-bar" style="width:${pct}%"></div></div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:#7a95a8;margin-top:3px;">
+            ✅ ${sent} sent &nbsp; ❌ ${failed} failed &nbsp; ⏳ ${total-sent-failed} pending
+          </div>`:''}
+        </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="empty" style="color:#ff8fa3;">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+async function runCampNow(id) {
+  toast('Starting campaign…');
+  try {
+    const r = await schedCall('runCampaign', { id });
+    toast(r.success ? '🚀 Campaign running!' : (r.error||'Failed'), !r.success);
+    setTimeout(loadCampaigns, 2000);
+  } catch(e) { toast('Error: '+e.message, true); }
+}
+
+async function deleteCamp(id) {
+  if (!confirm('Delete this campaign?')) return;
+  try {
+    await schedCall('deleteCampaign', { id });
+    toast('Campaign deleted');
+    loadCampaigns();
+  } catch(e) { toast('Error: '+e.message, true); }
+}
+
+function viewCamp(id) {
+  schedCall('listCampaigns').then(r => {
+    const c = (r.campaigns||[]).find(x=>x.id===id);
+    if (!c) return;
+    alert(JSON.stringify({ name:c.name, status:c.status, total:(c.contacts||[]).length, sent:(c.contacts||[]).filter(x=>x.status==='sent').length, failed:(c.contacts||[]).filter(x=>x.status==='failed').length, sendAt:c.sendAt, createdAt:c.createdAt }, null, 2));
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// TRIGGERS
+// ═══════════════════════════════════════════════════════
+function updateWebhookUrl() {
+  const base = window.location.origin;
+  const url  = `${base}/api/scheduler?action=webhook`;
+  document.getElementById('webhookUrl').textContent = url;
+}
+function copyWebhook() {
+  const url = document.getElementById('webhookUrl').textContent;
+  navigator.clipboard.writeText(url).then(()=>toast('Webhook URL copied!')).catch(()=>toast('Copy failed',true));
+}
+function openNewTrigger() {
+  document.getElementById('newTriggerCard').style.display = 'block';
+  document.getElementById('trigName').value = '';
+  document.getElementById('trigKeywords').value = '';
+  document.getElementById('trigReplyMsg').value = '';
+  document.getElementById('trigReplyPhone').value = '';
+  document.getElementById('trigType').value = 'keyword';
+  onTrigTypeChange();
+  document.getElementById('trigName').focus();
+}
+function onTrigTypeChange() {
+  const t = document.getElementById('trigType').value;
+  document.getElementById('keywordSection').style.display = t==='keyword' ? 'block' : 'none';
+  document.getElementById('webhookSection').style.display = t==='webhook' ? 'block' : 'none';
+}
+async function saveTrigger() {
+  const name = document.getElementById('trigName').value.trim();
+  const type = document.getElementById('trigType').value;
+  const msg  = document.getElementById('trigReplyMsg').value.trim();
+  if (!name) { toast('Enter a rule name', true); return; }
+  if (!msg)  { toast('Enter a reply message', true); return; }
+
+  const trig = {
+    id:           uid(),
+    name,
+    triggerType:  type,
+    replyMessage: msg,
+    enabled:      true,
+  };
+
+  if (type === 'keyword') {
+    trig.keywords  = document.getElementById('trigKeywords').value.trim();
+    trig.matchMode = document.getElementById('trigMatchMode').value;
+    if (!trig.keywords) { toast('Enter at least one keyword', true); return; }
+  } else {
+    trig.webhookEvents = document.getElementById('trigWebhookEvents').value.trim() || 'message';
+    trig.replyPhone    = document.getElementById('trigReplyPhone').value.trim();
+  }
+
+  try {
+    const r = await schedCall('saveTrigger', trig);
+    if (!r.success) throw new Error(r.error||'Save failed');
+    toast(`✅ Rule "${name}" saved`);
+    document.getElementById('newTriggerCard').style.display = 'none';
+    loadTriggers();
+  } catch(e) { toast('Error: '+e.message, true); }
+}
+
+async function loadTriggers() {
+  const el = document.getElementById('triggersList');
+  el.innerHTML = '<div class="empty"><span class="spin"></span> Loading…</div>';
+  try {
+    const r = await schedCall('listTriggers');
+    const trigs = r.triggers || [];
+    if (!trigs.length) { el.innerHTML='<div class="empty">No trigger rules yet. Create one above.</div>'; return; }
+    el.innerHTML = trigs.map(t => `
+      <div class="trig-card${t.enabled?' enabled':''}">
+        <div class="trig-info">
+          <div class="trig-name">${esc(t.name)}</div>
+          <div class="trig-meta">
+            <span class="badge b-${t.triggerType}">${t.triggerType}</span>&nbsp;
+            ${t.triggerType==='keyword' ? `Keywords: <strong>${esc(t.keywords)}</strong> · Match: ${t.matchMode}` : `Events: ${esc(t.webhookEvents)}`}
+          </div>
+          <div class="trig-meta" style="margin-top:2px;">↩ ${esc((t.replyMessage||'').slice(0,80))}${(t.replyMessage||'').length>80?'…':''}</div>
+          ${t.lastFiredAt?`<div style="font-size:9px;color:#4a6070;font-family:'Space Mono',monospace;margin-top:2px;">Last fired: ${fmtDT(t.lastFiredAt)} · ${t.fireCount||0}× total</div>`:''}
+        </div>
+        <div class="trig-actions">
+          <label class="toggle-wrap" title="${t.enabled?'Disable':'Enable'}" onclick="toggleTrig('${t.id}',${!t.enabled})">
+            <div class="toggle"><input type="checkbox" ${t.enabled?'checked':''}><span class="slider"></span></div>
+          </label>
+          <button class="btn btn-red btn-sm" onclick="deleteTrig('${t.id}')">✕</button>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="empty" style="color:#ff8fa3;">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+async function toggleTrig(id, enabled) {
+  try {
+    await schedCall('toggleTrigger', { id, enabled });
+    toast(enabled ? 'Rule enabled ✅' : 'Rule paused');
+    loadTriggers();
+  } catch(e) { toast('Error: '+e.message, true); }
+}
+async function deleteTrig(id) {
+  if (!confirm('Delete this trigger rule?')) return;
+  try {
+    await schedCall('deleteTrigger', { id });
+    toast('Rule deleted');
+    loadTriggers();
+  } catch(e) { toast('Error: '+e.message, true); }
+}
+
+async function testTrigger() {
+  const text   = document.getElementById('testMsgText').value.trim();
+  const sender = document.getElementById('testSenderPhone').value.trim() || '919999999999';
+  const result = document.getElementById('testTriggerResult');
+  if (!text) { toast('Enter a test message', true); return; }
+
+  result.style.display = 'block';
+  result.textContent = '⏳ Firing…';
+  try {
+    const payload = {
+      event: 'message',
+      payload: {
+        text: { body: text },
+        info: { remote_jid: sender + '@s.whatsapp.net' },
+        push_name: 'Test User',
+      }
+    };
+    const r = await schedCall('webhook', payload);
+    if (r.fired && r.fired.length) {
+      result.style.color = '#00e5a0';
+      result.textContent = `✅ Fired ${r.fired.length} rule(s): ` + r.fired.map(f=>`[${f.triggerId}→${f.to}:${f.ok?'✓':'✗'}]`).join(' ');
+    } else {
+      result.style.color = '#ffd166';
+      result.textContent = '⚠️ No rules matched for: "' + text + '"';
+    }
+  } catch(e) {
+    result.style.color = '#ff8fa3';
+    result.textContent = '❌ ' + e.message;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+(function init() {
+  loadSettingsUI();
+  updateWebhookUrl();
+  goStep(1);
+  // Passive status check in background
+  if (cfg.gowaUrl) {
+    checkStatus().catch(()=>{});
+  }
+  // Auto-refresh campaigns on bulk tab load
+  loadCampaigns();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "functions": {
+    "api/gowa.js": { "maxDuration": 60 },
+    "api/scheduler.js": { "maxDuration": 300 }
+  },
+  "rewrites": [
+    { "source": "/api/gowa/:path*", "destination": "/api/gowa" }
+  ],
+  "crons": [
+    {
+      "path": "/api/scheduler?action=runDue",
+      "schedule": "* * * * *"
+    }
+  ]
+}
